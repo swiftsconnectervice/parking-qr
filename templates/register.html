@@ -86,10 +86,19 @@
         }
 
         try {
+            // Get local time in ISO format
+            const now = new Date();
+            const entry_time = now.getFullYear() + '-' + 
+                String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+                String(now.getDate()).padStart(2, '0') + 'T' + 
+                String(now.getHours()).padStart(2, '0') + ':' + 
+                String(now.getMinutes()).padStart(2, '0') + ':' + 
+                String(now.getSeconds()).padStart(2, '0');
+            
             const response = await fetch('/api/entry', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ plate, vehicle_type, brand, model, color })
+                body: JSON.stringify({ plate, vehicle_type, brand, model, color, entry_time })
             });
 
             const data = await response.json();

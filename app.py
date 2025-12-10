@@ -261,9 +261,19 @@ def entry():
     brand = data.get('brand', '').strip() or None  # Opcional
     model = data.get('model', '').strip() or None  # Opcional
     color = data.get('color', '').strip() or None  # Opcional
+    entry_time_str = data.get('entry_time')  # Hora local del cliente
 
     if not plate or not vehicle_type:
         return jsonify({'error': 'Missing data'}), 400
+
+    # Parse entry time from client or use server time as fallback
+    if entry_time_str:
+        try:
+            entry_time = datetime.fromisoformat(entry_time_str)
+        except ValueError:
+            entry_time = datetime.now()
+    else:
+        entry_time = datetime.now()
 
     token = str(uuid.uuid4())
     
@@ -287,7 +297,8 @@ def entry():
         vehicle_type=vehicle_type,
         brand=brand,
         model=model,
-        color=color
+        color=color,
+        entry_time=entry_time
     )
     db.session.add(new_session)
     db.session.commit()
