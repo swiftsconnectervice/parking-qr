@@ -240,8 +240,18 @@ def calculator_search():
     if not rate:
         return jsonify({'error': 'Rate not found'}), 500
     
+    # Get client time if provided, otherwise use server time
+    client_time_str = request.args.get('current_time')
+    if client_time_str:
+        try:
+            current_time = datetime.fromisoformat(client_time_str)
+        except ValueError:
+            current_time = datetime.now()
+    else:
+        current_time = datetime.now()
+    
     # Calculate duration and amount using shared utility function
-    duration_hours, amount = calculate_parking_fee(session.entry_time, rate.hourly_rate)
+    duration_hours, amount = calculate_parking_fee(session.entry_time, rate.hourly_rate, current_time)
     
     return jsonify({
         'token': session.token,
@@ -318,8 +328,18 @@ def verify(token):
     if not rate:
         return jsonify({'error': 'Rate not found'}), 500
 
+    # Get client time if provided, otherwise use server time
+    client_time_str = request.args.get('current_time')
+    if client_time_str:
+        try:
+            current_time = datetime.fromisoformat(client_time_str)
+        except ValueError:
+            current_time = datetime.now()
+    else:
+        current_time = datetime.now()
+
     # Calculate duration and amount using shared utility function
-    duration_hours, amount = calculate_parking_fee(session.entry_time, rate.hourly_rate)
+    duration_hours, amount = calculate_parking_fee(session.entry_time, rate.hourly_rate, current_time)
 
     return jsonify({
         'plate': session.plate,
@@ -473,6 +493,7 @@ def update_session(token):
 def exit_parking():
     data = request.json
     token = data.get('token')
+    exit_time_str = data.get('exit_time')  # Hora local del cliente
     
     session = Session.query.get(token)
     if not session:
@@ -481,12 +502,20 @@ def exit_parking():
     if session.exit_time:
         return jsonify({'error': 'Session already closed'}), 400
 
+    # Parse exit time from client or use server time as fallback
+    if exit_time_str:
+        try:
+            exit_time = datetime.fromisoformat(exit_time_str)
+        except ValueError:
+            exit_time = datetime.now()
+    else:
+        exit_time = datetime.now()
+
     # Recalculate amount using shared utility function
     rate = Rate.query.filter_by(vehicle_type=session.vehicle_type).first()
-    now = datetime.now()
-    _, amount = calculate_parking_fee(session.entry_time, rate.hourly_rate, now)
+    _, amount = calculate_parking_fee(session.entry_time, rate.hourly_rate, exit_time)
 
-    session.exit_time = now
+    session.exit_time = exit_time
     session.amount_paid = amount
     db.session.commit()
 

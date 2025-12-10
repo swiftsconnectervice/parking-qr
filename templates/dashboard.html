@@ -515,14 +515,25 @@
         document.getElementById('edit-modal').classList.remove('active');
     }
 
+    function getLocalTimeISO() {
+        const now = new Date();
+        return now.getFullYear() + '-' + 
+            String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+            String(now.getDate()).padStart(2, '0') + 'T' + 
+            String(now.getHours()).padStart(2, '0') + ':' + 
+            String(now.getMinutes()).padStart(2, '0') + ':' + 
+            String(now.getSeconds()).padStart(2, '0');
+    }
+
     function openExitModal(token, plate, vehicleInfo, entryTime) {
         document.getElementById('exit-token').value = token;
         document.getElementById('exit-plate').textContent = plate;
         document.getElementById('exit-vehicle-info').textContent = vehicleInfo;
         document.getElementById('exit-entry-time').textContent = formatDateTime(entryTime);
         
-        // Calculate amount via API
-        fetch('/api/verify/' + token)
+        // Calculate amount via API with client time
+        const currentTime = getLocalTimeISO();
+        fetch('/api/verify/' + token + '?current_time=' + encodeURIComponent(currentTime))
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.amount !== undefined) {
@@ -539,12 +550,13 @@
 
     async function confirmExit() {
         const token = document.getElementById('exit-token').value;
+        const exitTime = getLocalTimeISO();
         
         try {
             const response = await fetch('/api/exit', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ token: token })
+                body: JSON.stringify({ token: token, exit_time: exitTime })
             });
             const data = await response.json();
             

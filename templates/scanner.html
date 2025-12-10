@@ -34,6 +34,16 @@
     let currentToken = null;
     let html5QrcodeScanner = null;
 
+    function getLocalTimeISO() {
+        const now = new Date();
+        return now.getFullYear() + '-' + 
+            String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+            String(now.getDate()).padStart(2, '0') + 'T' + 
+            String(now.getHours()).padStart(2, '0') + ':' + 
+            String(now.getMinutes()).padStart(2, '0') + ':' + 
+            String(now.getSeconds()).padStart(2, '0');
+    }
+
     function onScanSuccess(decodedText, decodedResult) {
         // Stop scanning
         if (html5QrcodeScanner) {
@@ -51,7 +61,8 @@
 
     async function verifyToken(token) {
         try {
-            const response = await fetch(`/api/verify/${token}`);
+            const currentTime = getLocalTimeISO();
+            const response = await fetch('/api/verify/' + token + '?current_time=' + encodeURIComponent(currentTime));
             const data = await response.json();
 
             if (response.ok) {
@@ -77,10 +88,11 @@
         if (!currentToken) return;
 
         try {
+            const exitTime = getLocalTimeISO();
             const response = await fetch('/api/exit', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ token: currentToken })
+                body: JSON.stringify({ token: currentToken, exit_time: exitTime })
             });
 
             const data = await response.json();
