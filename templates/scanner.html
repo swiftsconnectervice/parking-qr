@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}Scanner Salida{% endblock %}
+
+{% block head %}
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2 class="text-center">Escanear Ticket</h2>
+
+    <div id="reader" style="width: 100%; border-radius: 8px; overflow: hidden;"></div>
+
+    <div id="result" class="hidden">
+        <h2 class="text-center" style="color: var(--primary-color);">Detalle de Cobro</h2>
+        <div style="background: #2c2c2c; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+            <p><strong>Placa:</strong> <span id="plate" style="float: right;"></span></p>
+            <p><strong>Tipo:</strong> <span id="vehicle_type" style="float: right;"></span></p>
+            <p><strong>Entrada:</strong> <span id="entry_time" style="float: right;"></span></p>
+            <p><strong>Duración:</strong> <span id="duration" style="float: right;"></span> horas</p>
+        </div>
+
+        <h1 class="text-center" style="color: var(--success-color); font-size: 3rem;">$<span id="amount"></span></h1>
+
+        <button class="btn btn-success" onclick="confirmExit()">Confirmar Pago y Salida</button>
+        <a href="/" class="btn btn-outline text-center">Cancelar</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentToken = null;
+    let html5QrcodeScanner = null;
+
+    function onScanSuccess(decodedText, decodedResult) {
+        // Stop scanning
+        if (html5QrcodeScanner) {
+            html5QrcodeScanner.clear();
+        }
+
+        currentToken = decodedText;
+        verifyToken(currentToken);
+    }
+
+    function onScanFailure(error) {
+        // handle scan failure, usually better to ignore and keep scanning.
+        // console.warn(`Code scan error = ${error}`);
+    }
+
+    async function verifyToken(token) {
+        try {
+            const response = await fetch(`/api/verify/${token}`);
+            const data = await response.json();
+
+            if (response.ok) {
+                document.getElementById('reader').style.display = 'none';
+                document.getElementById('result').style.display = 'block';
+
+                document.getElementById('plate').innerText = data.plate;
+                document.getElementById('vehicle_type').innerText = data.vehicle_type;
+                document.getElementById('entry_time').innerText = new Date(data.entry_time).toLocaleString();
+                document.getElementById('duration').innerText = data.duration_hours;
+                document.getElementById('amount').innerText = data.amount;
+            } else {
+                alert('Error: ' + data.error);
+                // Restart scanner if needed
+                location.reload();
+            }
+        } catch (e) {
+            alert('Error de conexión');
+        }
+    }
+
+    async function confirmExit() {
+        if (!currentToken) return;
+
+        try {
+            const response = await fetch('/api/exit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: currentToken })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                alert('Salida registrada correctamente. ¡Buen viaje!');
+                window.location.href = '/';
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch (e) {
+            alert('Error de conexión');
+        }
+    }
+
+    html5QrcodeScanner = new Html5QrcodeScanner(
+        "reader",
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+            /* verbose= */ false);
+    html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+</script>
+{% endblock %}

@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+
+{% block title %}Calculadora de Tarifas{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2 class="text-center">Calculadora de Tarifas</h2>
+
+    <!-- Search Form -->
+    <div id="search-form">
+        <div class="form-group">
+            <input type="text" id="plate-input" placeholder="Ingrese número de placa" autofocus>
+        </div>
+        <button onclick="searchPlate()" class="btn btn-primary">Buscar</button>
+        <a href="/" class="btn btn-outline text-center">Volver al Inicio</a>
+    </div>
+
+    <!-- Search Result -->
+    <div id="search-result" style="display: none;" class="mt-2">
+        <div class="result-card">
+            <h3>Detalles del Vehículo</h3>
+            <div class="detail-row">
+                <span class="detail-label">Placa:</span>
+                <span id="result-plate" class="detail-value"></span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Tipo:</span>
+                <span id="result-type" class="detail-value"></span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Entrada:</span>
+                <span id="result-entry" class="detail-value"></span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Duración:</span>
+                <span id="result-duration" class="detail-value"></span>
+            </div>
+            <div class="detail-row amount-row">
+                <span class="detail-label">Monto a Pagar:</span>
+                <span id="result-amount" class="detail-value amount"></span>
+            </div>
+        </div>
+        <input type="hidden" id="result-token">
+        <button onclick="confirmPayment()" class="btn btn-success">Confirmar Pago y Salida</button>
+        <button onclick="newSearch()" class="btn btn-outline">Nueva Búsqueda</button>
+    </div>
+
+    <!-- Payment Confirmed -->
+    <div id="payment-confirmed" style="display: none;" class="mt-2 text-center">
+        <div class="success-icon">✓</div>
+        <h3 style="color: var(--success-color);">Salida Registrada</h3>
+        <p>Monto pagado: <span id="paid-amount"></span></p>
+        <button onclick="newSearch()" class="btn btn-primary mt-2">Nueva Búsqueda</button>
+        <a href="/" class="btn btn-outline text-center">Volver al Inicio</a>
+    </div>
+
+    <!-- Not Found Message -->
+    <div id="not-found" style="display: none;" class="mt-2 text-center">
+        <p class="error-message">No se encontró sesión activa para esta placa</p>
+        <button onclick="newSearch()" class="btn btn-outline">Intentar de Nuevo</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+    .result-card {
+        background-color: #FFF5EB;
+        padding: 1.5rem;
+        border-radius: var(--border-radius);
+        margin-bottom: 1rem;
+        border: 1px solid var(--border-color);
+    }
+    h3 {
+        font-size: 1.2rem;
+        margin-bottom: 1rem;
+        color: var(--text-muted);
+    }
+    .detail-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .detail-row:last-child {
+        border-bottom: none;
+    }
+    .detail-label {
+        color: var(--text-muted);
+    }
+    .detail-value {
+        font-weight: 600;
+    }
+    .amount-row {
+        margin-top: 0.5rem;
+        padding-top: 1rem;
+        border-top: 2px solid var(--primary-color);
+    }
+    .amount {
+        font-size: 1.3rem;
+        color: var(--success-color);
+    }
+    .error-message {
+        color: var(--error-color);
+        font-size: 1.1rem;
+        margin-bottom: 1rem;
+    }
+    .success-icon {
+        font-size: 4rem;
+        color: var(--success-color);
+        margin-bottom: 1rem;
+    }
+</style>
+
+<script>
+    async function searchPlate() {
+        const plate = document.getElementById('plate-input').value.trim();
+        
+        if (!plate) {
+            alert('Por favor ingrese un número de placa');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/calculator/search?plate=${encodeURIComponent(plate)}`);
+            const data = await response.json();
+
+            if (response.ok) {
+                showResult(data);
+            } else if (response.status === 404) {
+                showNotFound();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch (e) {
+            alert('Error de conexión');
+        }
+    }
+
+    function showResult(data) {
+        document.getElementById('search-form').style.display = 'none';
+        document.getElementById('not-found').style.display = 'none';
+        document.getElementById('payment-confirmed').style.display = 'none';
+        document.getElementById('search-result').style.display = 'block';
+
+        document.getElementById('result-plate').textContent = data.plate;
+        document.getElementById('result-type').textContent = data.vehicle_type;
+        document.getElementById('result-entry').textContent = formatDateTime(data.entry_time);
+        document.getElementById('result-duration').textContent = formatDuration(data.duration_hours);
+        document.getElementById('result-amount').textContent = '$' + data.amount.toFixed(2);
+        document.getElementById('result-token').value = data.token;
+    }
+
+    function showNotFound() {
+        document.getElementById('search-form').style.display = 'none';
+        document.getElementById('search-result').style.display = 'none';
+        document.getElementById('payment-confirmed').style.display = 'none';
+        document.getElementById('not-found').style.display = 'block';
+    }
+
+    function newSearch() {
+        document.getElementById('search-form').style.display = 'block';
+        document.getElementById('search-result').style.display = 'none';
+        document.getElementById('not-found').style.display = 'none';
+        document.getElementById('payment-confirmed').style.display = 'none';
+        document.getElementById('plate-input').value = '';
+        document.getElementById('plate-input').focus();
+    }
+
+    async function confirmPayment() {
+        const token = document.getElementById('result-token').value;
+
+        try {
+            const response = await fetch('/api/exit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                document.getElementById('search-result').style.display = 'none';
+                document.getElementById('payment-confirmed').style.display = 'block';
+                document.getElementById('paid-amount').textContent = '$' + data.amount_paid.toFixed(2);
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch (e) {
+            alert('Error de conexión');
+        }
+    }
+
+    function formatDateTime(isoString) {
+        const date = new Date(isoString);
+        return date.toLocaleString('es-ES', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+
+    function formatDuration(hours) {
+        const h = Math.floor(hours);
+        const m = Math.round((hours - h) * 60);
+        if (h === 0) {
+            return `${m} minutos`;
+        } else if (m === 0) {
+            return `${h} hora${h > 1 ? 's' : ''}`;
+        }
+        return `${h} hora${h > 1 ? 's' : ''} ${m} min`;
+    }
+
+    // Allow Enter key to search
+    document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('plate-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchPlate();
+            }
+        });
+    });
+</script>
+{% endblock %}

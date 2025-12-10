@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}Registro Entrada{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2 class="text-center">Registro de Entrada</h2>
+
+    <div id="form-container">
+        <div class="form-group">
+            <input type="text" id="plate" placeholder="Placa del Vehículo *" required>
+        </div>
+        <div class="form-group">
+            <select id="vehicle_type">
+                <option value="">Cargando tipos...</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <input type="text" id="brand" placeholder="Marca (opcional)">
+        </div>
+        <div class="form-group">
+            <input type="text" id="model" placeholder="Modelo (opcional)">
+        </div>
+        <div class="form-group">
+            <input type="text" id="color" placeholder="Color (opcional)">
+        </div>
+        <p class="text-muted" style="font-size: 0.85rem; margin-bottom: 1rem;">* Campo obligatorio</p>
+        <button onclick="register()" class="btn btn-primary">Generar Ticket QR</button>
+        <a href="/" class="btn btn-outline text-center">Cancelar</a>
+    </div>
+
+    <div id="qr-result" class="hidden text-center">
+        <h2 style="color: var(--success-color);">Ticket Generado</h2>
+        <div style="background: white; padding: 10px; display: inline-block; border-radius: 8px;">
+            <img id="qr-image" src="" alt="QR Code" style="max-width: 100%; display: block;">
+        </div>
+        <p class="mt-2">Por favor, tome una foto de este QR.</p>
+        <a href="/" class="btn btn-outline mt-2">Volver al Inicio</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Load vehicle types on page load
+    async function loadVehicleTypes() {
+        try {
+            const response = await fetch('/api/vehicle-types');
+            const types = await response.json();
+            
+            const select = document.getElementById('vehicle_type');
+            select.innerHTML = '';
+            
+            if (types.length === 0) {
+                select.innerHTML = '<option value="">No hay tipos disponibles</option>';
+                return;
+            }
+            
+            types.forEach(type => {
+                const option = document.createElement('option');
+                option.value = type.vehicle_type;
+                option.textContent = `${type.vehicle_type} ($${type.hourly_rate.toFixed(2)}/hora)`;
+                select.appendChild(option);
+            });
+        } catch (e) {
+            const select = document.getElementById('vehicle_type');
+            select.innerHTML = '<option value="">Error al cargar tipos</option>';
+        }
+    }
+
+    async function register() {
+        const plate = document.getElementById('plate').value.trim();
+        const vehicle_type = document.getElementById('vehicle_type').value;
+        const brand = document.getElementById('brand').value.trim();
+        const model = document.getElementById('model').value.trim();
+        const color = document.getElementById('color').value.trim();
+
+        if (!plate) {
+            alert('Por favor ingrese la placa');
+            return;
+        }
+
+        if (!vehicle_type) {
+            alert('Por favor seleccione un tipo de vehículo');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/entry', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ plate, vehicle_type, brand, model, color })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                document.getElementById('form-container').style.display = 'none';
+                document.getElementById('qr-result').style.display = 'block';
+                document.getElementById('qr-image').src = data.qr_url;
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch (e) {
+            alert('Error de conexión');
+        }
+    }
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', loadVehicleTypes);
+</script>
+{% endblock %}

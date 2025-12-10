@@ -1,0 +1,19 @@
+# Database
+instance/
+*.db
+
+# Python
+__pycache__/
+*.py[cod]
+.hypothesis/
+
+# QR codes generated
+static/qrs/*.png
+
+# IDE
+.vscode/
+.kiro/
+
+# Environment
+.env
+venv/

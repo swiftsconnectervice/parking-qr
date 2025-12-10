@@ -1,0 +1,315 @@
+# 🎯 Plan de Implementación QR - Ready para Antigravity
+
+**Objetivo**: Transformar tu registro manual a sistema 100% digital con QR en 6 horas. Copia cada instrucción exactamente como aparece.
+
+---
+
+## **SETUP INICIAL (30 minutos - TU control total)**
+
+### Paso 0: Inicializar Proyecto Seguro
+```bash
+# Instala Antigravity primero: antigravity.google/download
+# Luego ejecuta esto en tu terminal:
+
+antigravity init parking-qr-system --python --security-policy=restricted
+```
+
+### Paso 1: Configurar Políticas de Seguridad (CRÍTICO)
+**Instrucción para Antigravity:**
+```
+/set-security-policy terminal=ask-before-execute
+/set-security-policy code-review=on
+/block-commands rm,sudo,curl,wget
+/set-auto-backup db=hourly,path=./backups
+```
+**Marca de control:** ✅ Antes de continuar, revisa que se creó la carpeta `/backups`
+
+---
+
+## **FASE 1: MODELO DE DATOS QR (45 min - AGENTE)**
+
+### Paso 2: Crear Base de Datos y Modelos
+**Copia y pega esto EXACTAMENTE:**
+```
+/CREATE-TASK-BLOCK "Modelo de Datos QR"
+
+1. Diseña tabla rates con campos: id, vehicle_type, hourly_rate, is_active
+2. Diseña tabla parking_sessions con campos: id, qr_token, plate, vehicle_type, brand, color, details, entry_time, exit_time, total_paid
+3. qr_token debe ser UNIQUE STRING de 12 caracteres en formato PK-XXXX-YYYY
+4. Genera migración Alembic (SQLAlchemy)
+5. Crea script seeds.py con 3 tarifas: automovil=20, moto=10, camioneta=25
+6. Ejecuta migración y verifica con SELECT * FROM tables
+
+/ASSIGN-AGENT "Database Engineer"
+/SET-PRIORITY high
+/EXECUTE
+```
+
+**Marca de control:** ✅ Ejecuta `sqlite3 parking.db ".schema"` y verifica las tablas
+
+---
+
+## **FASE 2: BACKEND QR (90 min - AGENTE)**
+
+### Paso 3: Sistema de Tokens y Generación QR
+**Instrucción para Antigravity:**
+```
+/CREATE-TASK-BLOCK "Backend QR Generator"
+
+1. Instala dependencias: qrcode[pil], pillow, sqlalchemy
+2. Crea qr_generator.py con clase QRManager que:
+   - Genere tokens únicos PK-AAAA-BBBB
+   - Cree imagen PNG con logo (static/img/logo.png)
+   - Guarde en carpeta static/qr_codes/
+3. Crea endpoint POST /api/entry con body:
+   {plate, vehicle_type, brand, color, details}
+4. El endpoint debe:
+   - Validar formato de placa mexicana AAA-123
+   - Generar qr_token
+   - Insertar en parking_sessions
+   - Retornar {success: true, qr_path, token, entry_time}
+5. Implementa validación de tipos de vehículo contra tabla rates
+6. Genera 5 tests unitarios con pytest
+
+/ASSIGN-AGENT "Backend Developer"
+/EXECUTE
+```
+
+### Paso 4: API de Verificación y Salida
+**Instrucción para Antigravity:**
+```
+/CREATE-TASK-BLOCK "API Verificación QR"
+
+1. Endpoint GET /api/verify-qr/<token>
+2. Si encontrado y sin exit_time: retorna datos completos + tiempo transcurrido
+3. Si ya egresó: retorna error 410 "Vehículo ya retirado"
+4. Si no existe: retorna error 404
+5. Endpoint POST /api/exit con body: {token, exit_time}
+6. Calcula total: ceil(minutos/15) * tarifa/4
+7. Retorna {total_amount, hours_parked, rate_used}
+8. Incluye manejo de CORS y rate limiting (10 req/seg)
+
+/ASSIGN-AGENT "API Security"
+/EXECUTE
+```
+
+**Marca de control:** ✅ Prueba con Postman: `POST /api/entry` con datos de prueba
+
+---
+
+## **FASE 3: FRONTEND MÓVIL (90 min - AGENTE)**
+
+### Paso 5: Ticket Digital (Pantalla del Cliente)
+**Instrucción para Antigravity:**
+```
+/CREATE-TASK-BLOCK "UI Ticket Digital"
+
+1. Crea template ticket_digital.html con:
+   - QR 300x300px centrado
+   - Placa en H1 tamaño 32px
+   - Hora de entrada, tipo, marca
+   - Botón "Descargar Ticket" usando html2canvas
+   - Botón "Compartir por WhatsApp" (web Share API)
+2. Diseño responsive: max-width 400px, margen auto
+3. CSS para impresión térmica 58mm: @media print { ... }
+4. Script JS que convierte ticket a PNG y trigger descarga
+5. Incluye meta viewport y PWA manifest para "Agregar a pantalla"
+
+/ASSIGN-AGENT "Frontend Designer"
+/DESIGN-THEME "mobile-first, dark-mode optional"
+/EXECUTE
+```
+
+### Paso 6: Escáner QR para Salida
+**Instrucción para Antigravity:**
+```
+/CREATE-TASK-BLOCK "Scanner QR Salida"
+
+1. Usa librería html5-qrcode@2.3.8 desde CDN
+2. Crea scan_exit.html con:
+   - Div #reader (cámara en vivo)
+   - Overlay con cuadro de escaneo
+   - Botón "Escribir Placa Manual" (fallback)
+3. Al escanear: 
+   - FETCH a /api/verify-qr/<token>
+   - Muestra modal con datos del vehículo
+   - Muestra tiempo estacionado y monto
+   - Botón rojo "Confirmar Salida" con confirmación
+4. Si error: muestra mensaje con vibración (navigator.vibrate)
+5. Al confirmar: POST a /api/exit y muestra recibo
+6. Prueba en 3 dispositivos móviles (emulador de Antigravity)
+
+/ASSIGN-AGENT "Mobile Developer"
+/TEST-ON devices=["iPhone 13", "Samsung S22", "Xiaomi Note 10"]
+/EXECUTE
+```
+
+**Marca de control:** ✅ Escanea un QR de prueba desde tu móvil. Debe mostrar datos.
+
+---
+
+## **FASE 4: FLUJO COMPLETO (45 min - TU DIRECCIÓN)**
+
+### Paso 7: Dashboard Principal
+**Instrucción para Antigravity:**
+```
+/CREATE-TASK-BLOCK "Dashboard Principal"
+
+1. Index.html con 2 botones grandes (80vh cada uno):
+   - 🚗 Nuevo Ingreso -> redirige a /register
+   - 📷 Escanear Salida -> redirige a /scan_exit
+2. Barra superior con:
+   - Total vehículos activos (live count)
+   - Link a /reports
+3. Footer sticky con:
+   - Último registro: placa + hora
+   - Ingresos del día: $0.00 (actualiza cada 30 seg)
+4. Implementa SSE (Server-Sent Events) para updates en tiempo real
+5. Guarda en localStorage últimos 10 tickets por si falla conexión
+
+/ASSIGN-AGENT "UX Engineer"
+/DECISION-REQUIRED layout=["botones verticales", "botones horizontales"]
+/EXECUTE
+```
+
+**TU DECISIÓN:** Elige layout en el chat de Antigravity antes de ejecutar.
+
+---
+
+## **FASE 5: REPORTES Y BACKUP (30 min - AGENTE)**
+
+### Paso 8: Sistema de Reportes
+**Instrucción para Antigravity:**
+```
+/CREATE-TASK-BLOCK "Reportes Diarios"
+
+1. Endpoint /api/reports/daily?date=YYYY-MM-DD
+2. Retorna JSON: {total_vehicles, total_revenue, avg_time, per_type}
+3. Template reports.html con:
+   - Date picker
+   - Tabla sortable de registros
+   - Botón "Exportar Excel" (sheetjs)
+   - Botón "Imprimir Resumen"
+4. Query SQL optimizada con índices en entry_time, exit_time
+5. Límite de 1000 registros por consulta (paginación)
+
+/ASSIGN-AGENT "Data Analyst"
+/EXECUTE
+```
+
+### Paso 9: Backup Automático
+**Instrucción para Antigravity:**
+```
+/CREATE-TASK cron="0 */6 * * *" "Backup DB"
+
+1. Crea script backup.py que:
+   - Haz dump de parking.db
+   - Comprime con ZIP + fecha
+   - Guarda en /backups/ (máx 7 archivos)
+   - Opcional: sube a Google Drive si configuras API key
+2. Añade endpoint manual /backup-trigger para forzar backup
+3. Notifica en dashboard si último backup > 24h
+
+/ASSIGN-AGENT "DevOps"
+/EXECUTE
+```
+
+---
+
+## **FASE 6: PRUEBAS DE CAMPO (30 min - TU control)**
+
+### Paso 10: Simulación de Día Completo
+**Instrucción para Antigravity:**
+```
+/CREATE-TEST "Simulación Estacionamiento"
+
+1. Crea script simulate_day.py que genere 20 registros aleatorios
+2. Simula entradas cada 5 minutos
+3. Simula salidas aleatorias después de 1-4 horas
+4. Verifica que todos los cálculos sean correctos
+5. Genera reporte de consistencia: SUM(total_paid) vs manual
+6. Exporta log de errores si los hay
+
+/EXECUTE
+```
+
+**Marca de control:** ✅ Revisa reporte. ¿Los totales coinciden con tu cálculo manual?
+
+---
+
+### Paso 11: Checklist de Despliegue (TU responsabilidad)
+**Instrucción para Antigravity:**
+```
+/GENERATE-CHECKLIST "Pre-Production"
+
+1. Verificar que impresora térmica esté conectada (si aplica)
+2. Probar en red local: ipconfig/ifconfig para obtener IP
+3. Configurar firewall: permitir puerto 5000
+4. Crear acceso directo en pantalla de smartphones del personal
+5. Imprimir 5 tickets QR de prueba
+6. Testear escaneo con 3 dispositivos diferentes
+7. Validar backup se crea correctamente
+8. Entrenar al personal (genera guía rápida de 1 página)
+
+/OUTPUT-FORMAT markdown+checkboxes
+```
+
+---
+
+## **🎮 MODO DIRECTOR: Cómo Usar Antigravity**
+
+### **Comandos que TÚ usarás:**
+
+| Comando | Cuándo usar | Qué hace |
+|---------|-------------|----------|
+| `/status` | Cada 30 min | Ve progreso de tareas |
+| `/pause-task [id]` | Si algo sale mal | Detiene ejecución |
+| `/review-code [file]` | Antes de aprobar | Muestra diff de cambios |
+| `/approve [task]` | Después de revisar | Guarda y continúa |
+| `/rollback [commit]` | Si hay error crítico | Vuelve a versión anterior |
+| `/generate-docs` | Al final | Crea manual de usuario |
+
+### **Decisiones que DEBES tomar:**
+
+1. **Dentro de 45 min**: Layout del dashboard (Paso 7)
+2. **Dentro de 2 horas**: Revisar código de generación de QR (Paso 3)
+3. **Dentro de 4 horas**: Aprobar diseño del ticket digital (Paso 5)
+4. **Al final**: Tipo de backup (local solo o cloud también)
+
+---
+
+## **📊 MÉTRICAS DE ÉXITO**
+
+**Antigravity reportará estas métricas automáticamente:**
+```json
+{
+  "development_time": "5.5 horas",
+  "code_generated": "~450 líneas",
+  "test_coverage": "85%",
+  "api_endpoints": 6,
+  "ui_screens": 4,
+  "security_checks": "pass"
+}
+```
+
+✅ **Tu meta**: Registrar 10 vehículos en <15 minutos cada uno con 0 errores.
+
+---
+
+## **🚨 PROTOCOLO DE EMERGENCIA**
+
+Si algo falla en producción:
+```
+/DIAGNOSE-ERROR "Descripción del problema"
+/EMERGENCY-FIX "Rollback último cambio"
+/SWITCH-TO-MODE manual=True
+```
+
+---
+
+**Instrucción final para iniciar TODO:**
+```
+antigravity start-project --plan=parking-qr-system --auto-approve-setup=false
+```
+
+Copia eso, pégalo en Antigravity, y **tú controlas cada aprobación**. ¿Listo para empezar?

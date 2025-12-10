@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+
+{% block title %}Panel de Control{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2 class="text-center">Panel de Control</h2>
+
+    <!-- Date Picker -->
+    <div class="date-picker-section">
+        <label for="date-picker">Seleccionar Fecha:</label>
+        <input type="date" id="date-picker" onchange="loadDashboard()">
+    </div>
+
+    <!-- Stats Summary -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value" id="entries-count">-</div>
+            <div class="stat-label">Entradas</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="exits-count">-</div>
+            <div class="stat-label">Salidas</div>
+        </div>
+        <div class="stat-card stat-revenue">
+            <div class="stat-value" id="total-revenue">-</div>
+            <div class="stat-label">Ingresos</div>
+        </div>
+    </div>
+
+    <!-- Stats by Vehicle Type -->
+    <div class="section mt-2">
+        <h3>Estadísticas por Tipo</h3>
+        <div id="stats-by-type">
+            <p class="text-muted">Cargando...</p>
+        </div>
+    </div>
+
+    <!-- Active Vehicles -->
+    <div class="section mt-2">
+        <h3>Vehículos Actualmente Estacionados</h3>
+        <div id="active-vehicles">
+            <p class="text-muted">Cargando...</p>
+        </div>
+    </div>
+
+    <a href="/" class="btn btn-outline mt-2 text-center">Volver al Inicio</a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+    .date-picker-section {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+    }
+    .date-picker-section label {
+        color: var(--text-muted);
+    }
+    #date-picker {
+        flex: 1;
+        min-width: 150px;
+    }
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+    }
+    .stat-card {
+        background-color: #FFF5EB;
+        padding: 1rem;
+        border-radius: var(--border-radius);
+        text-align: center;
+        border: 1px solid var(--border-color);
+    }
+    .stat-value {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: var(--primary-color);
+    }
+    .stat-revenue .stat-value {
+        color: var(--success-color);
+    }
+    .stat-label {
+        color: var(--text-muted);
+        font-size: 0.9rem;
+        margin-top: 0.25rem;
+    }
+    .section {
+        border-top: 1px solid var(--border-color);
+        padding-top: 1rem;
+    }
+    h3 {
+        font-size: 1.1rem;
+        margin-bottom: 1rem;
+        color: var(--text-muted);
+    }
+    .type-stat-row {
+        background-color: #FFF5EB;
+        padding: 0.75rem 1rem;
+        border-radius: var(--border-radius);
+        margin-bottom: 0.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        border: 1px solid var(--border-color);
+    }
+    .type-stat-name {
+        font-weight: 600;
+        min-width: 80px;
+    }
+    .type-stat-details {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+    .type-stat-item {
+        font-size: 0.9rem;
+    }
+    .type-stat-item span {
+        color: var(--text-muted);
+    }
+    .vehicle-row {
+        background-color: #FFF5EB;
+        padding: 0.75rem 1rem;
+        border-radius: var(--border-radius);
+        margin-bottom: 0.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        border: 1px solid var(--border-color);
+    }
+    .vehicle-plate {
+        font-weight: 600;
+        font-size: 1.1rem;
+    }
+    .vehicle-details {
+        color: var(--text-muted);
+        font-size: 0.9rem;
+    }
+    .text-muted {
+        color: var(--text-muted);
+    }
+    .no-data {
+        text-align: center;
+        padding: 1rem;
+        color: var(--text-muted);
+    }
+    @media (max-width: 480px) {
+        .stats-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<script>
+    const CURRENCY = '\u0024';
+    
+    function getTodayDate() {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        return year + '-' + month + '-' + day;
+    }
+
+    async function loadDashboard() {
+        const date = document.getElementById('date-picker').value || getTodayDate();
+
+        try {
+            const response = await fetch('/api/dashboard?date=' + date);
+            const data = await response.json();
+
+            if (response.ok) {
+                renderDashboard(data);
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch (e) {
+            alert('Error de conexión');
+        }
+    }
+
+    function renderDashboard(data) {
+        // Update summary stats
+        document.getElementById('entries-count').textContent = data.entries_count;
+        document.getElementById('exits-count').textContent = data.exits_count;
+        document.getElementById('total-revenue').textContent = CURRENCY + data.total_revenue.toFixed(2);
+
+        // Render stats by type
+        const statsContainer = document.getElementById('stats-by-type');
+        if (data.stats_by_type.length === 0) {
+            statsContainer.innerHTML = '<p class="no-data">Sin actividad para esta fecha</p>';
+        } else {
+            let html = '';
+            data.stats_by_type.forEach(function(stat) {
+                html += '<div class="type-stat-row">' +
+                    '<div class="type-stat-name">' + stat.vehicle_type + '</div>' +
+                    '<div class="type-stat-details">' +
+                    '<div class="type-stat-item"><span>Entradas:</span> ' + stat.entries + '</div>' +
+                    '<div class="type-stat-item"><span>Salidas:</span> ' + stat.exits + '</div>' +
+                    '<div class="type-stat-item"><span>Ingresos:</span> ' + CURRENCY + stat.revenue.toFixed(2) + '</div>' +
+                    '</div></div>';
+            });
+            statsContainer.innerHTML = html;
+        }
+
+        // Render active vehicles
+        const vehiclesContainer = document.getElementById('active-vehicles');
+        if (data.active_vehicles.length === 0) {
+            vehiclesContainer.innerHTML = '<p class="no-data">No hay vehículos estacionados</p>';
+        } else {
+            let html = '';
+            data.active_vehicles.forEach(function(v) {
+                html += '<div class="vehicle-row">' +
+                    '<div class="vehicle-plate">' + v.plate + '</div>' +
+                    '<div class="vehicle-details">' + v.vehicle_type + ' • Entrada: ' + formatDateTime(v.entry_time) + '</div>' +
+                    '</div>';
+            });
+            vehiclesContainer.innerHTML = html;
+        }
+    }
+
+    function formatDateTime(isoString) {
+        const date = new Date(isoString);
+        return date.toLocaleString('es-ES', {
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('date-picker').value = getTodayDate();
+        loadDashboard();
+    });
+</script>
+{% endblock %}

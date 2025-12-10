@@ -1,0 +1,6 @@
+flask
+sqlalchemy
+flask-sqlalchemy
+qrcode
+pillow
+gunicorn

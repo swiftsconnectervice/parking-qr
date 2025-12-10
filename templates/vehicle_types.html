@@ -1,0 +1,287 @@
+{% extends "base.html" %}
+
+{% block title %}Gestión de Tipos de Vehículos{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2 class="text-center">Gestión de Tipos de Vehículos</h2>
+
+    <!-- Add New Type Form -->
+    <div id="add-form" class="form-section">
+        <h3>Agregar Nuevo Tipo</h3>
+        <div class="form-group">
+            <input type="text" id="new-type-name" placeholder="Nombre del tipo (ej: Auto, Moto)">
+        </div>
+        <div class="form-group">
+            <input type="number" id="new-type-rate" placeholder="Tarifa por hora" step="0.01" min="0">
+        </div>
+        <button onclick="addVehicleType()" class="btn btn-primary">Agregar Tipo</button>
+    </div>
+
+    <!-- Vehicle Types List -->
+    <div id="types-list" class="mt-2">
+        <h3>Tipos Existentes</h3>
+        <div id="types-container">
+            <p class="text-muted">Cargando...</p>
+        </div>
+    </div>
+
+    <a href="/" class="btn btn-outline mt-2 text-center">Volver al Inicio</a>
+</div>
+
+<!-- Edit Modal -->
+<div id="edit-modal" class="modal" style="display: none;">
+    <div class="modal-content card">
+        <h3>Editar Tipo de Vehículo</h3>
+        <input type="hidden" id="edit-id">
+        <div class="form-group">
+            <input type="text" id="edit-name" placeholder="Nombre del tipo">
+        </div>
+        <div class="form-group">
+            <input type="number" id="edit-rate" placeholder="Tarifa por hora" step="0.01" min="0">
+        </div>
+        <button onclick="saveEdit()" class="btn btn-primary">Guardar</button>
+        <button onclick="closeEditModal()" class="btn btn-outline">Cancelar</button>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div id="delete-modal" class="modal" style="display: none;">
+    <div class="modal-content card">
+        <h3>Confirmar Eliminación</h3>
+        <input type="hidden" id="delete-id">
+        <p id="delete-message">¿Está seguro de eliminar este tipo de vehículo?</p>
+        <button onclick="confirmDelete()" class="btn btn-danger">Eliminar</button>
+        <button onclick="closeDeleteModal()" class="btn btn-outline">Cancelar</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+    .form-section {
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 1rem;
+        margin-bottom: 1rem;
+    }
+    h3 {
+        font-size: 1.2rem;
+        margin-bottom: 1rem;
+        color: var(--text-muted);
+    }
+    .type-item {
+        background-color: #FFF5EB;
+        padding: 1rem;
+        border-radius: var(--border-radius);
+        margin-bottom: 0.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        border: 1px solid var(--border-color);
+    }
+    .type-info {
+        flex: 1;
+        min-width: 150px;
+    }
+    .type-name {
+        font-weight: 600;
+        font-size: 1.1rem;
+    }
+    .type-rate {
+        color: var(--text-muted);
+        font-size: 0.9rem;
+    }
+    .type-sessions {
+        color: var(--primary-color);
+        font-size: 0.85rem;
+    }
+    .type-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+    .btn-small {
+        padding: 0.5rem 1rem;
+        font-size: 0.9rem;
+        width: auto;
+    }
+    .modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+    }
+    .modal-content {
+        max-width: 400px;
+        width: 90%;
+    }
+    .text-muted {
+        color: var(--text-muted);
+    }
+    .error-message {
+        color: var(--error-color);
+        margin-top: 0.5rem;
+    }
+</style>
+
+<script>
+    let vehicleTypes = [];
+
+    async function loadVehicleTypes() {
+        try {
+            const response = await fetch('/api/vehicle-types');
+            vehicleTypes = await response.json();
+            renderTypes();
+        } catch (e) {
+            document.getElementById('types-container').innerHTML = 
+                '<p class="error-message">Error al cargar los tipos</p>';
+        }
+    }
+
+    function renderTypes() {
+        const container = document.getElementById('types-container');
+        if (vehicleTypes.length === 0) {
+            container.innerHTML = '<p class="text-muted">No hay tipos de vehículos registrados</p>';
+            return;
+        }
+
+        container.innerHTML = vehicleTypes.map(type => `
+            <div class="type-item">
+                <div class="type-info">
+                    <div class="type-name">${type.vehicle_type}</div>
+                    <div class="type-rate">$${type.hourly_rate.toFixed(2)} / hora</div>
+                    <div class="type-sessions">${type.active_sessions} sesiones activas</div>
+                </div>
+                <div class="type-actions">
+                    <button onclick="openEditModal(${type.id})" class="btn btn-primary btn-small">Editar</button>
+                    <button onclick="openDeleteModal(${type.id})" class="btn btn-danger btn-small">Eliminar</button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async function addVehicleType() {
+        const name = document.getElementById('new-type-name').value.trim();
+        const rate = parseFloat(document.getElementById('new-type-rate').value);
+
+        if (!name) {
+            alert('Por favor ingrese el nombre del tipo');
+            return;
+        }
+        if (isNaN(rate) || rate < 0) {
+            alert('Por favor ingrese una tarifa válida');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/vehicle-types', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ vehicle_type: name, hourly_rate: rate })
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+                document.getElementById('new-type-name').value = '';
+                document.getElementById('new-type-rate').value = '';
+                loadVehicleTypes();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch (e) {
+            alert('Error de conexión');
+        }
+    }
+
+    function openEditModal(id) {
+        const type = vehicleTypes.find(t => t.id === id);
+        if (!type) return;
+
+        document.getElementById('edit-id').value = id;
+        document.getElementById('edit-name').value = type.vehicle_type;
+        document.getElementById('edit-rate').value = type.hourly_rate;
+        document.getElementById('edit-modal').style.display = 'flex';
+    }
+
+    function closeEditModal() {
+        document.getElementById('edit-modal').style.display = 'none';
+    }
+
+    async function saveEdit() {
+        const id = document.getElementById('edit-id').value;
+        const name = document.getElementById('edit-name').value.trim();
+        const rate = parseFloat(document.getElementById('edit-rate').value);
+
+        if (!name) {
+            alert('Por favor ingrese el nombre del tipo');
+            return;
+        }
+        if (isNaN(rate) || rate < 0) {
+            alert('Por favor ingrese una tarifa válida');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/vehicle-types/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ vehicle_type: name, hourly_rate: rate })
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+                closeEditModal();
+                loadVehicleTypes();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch (e) {
+            alert('Error de conexión');
+        }
+    }
+
+    function openDeleteModal(id) {
+        const type = vehicleTypes.find(t => t.id === id);
+        if (!type) return;
+
+        document.getElementById('delete-id').value = id;
+        document.getElementById('delete-message').textContent = 
+            `¿Está seguro de eliminar el tipo "${type.vehicle_type}"?`;
+        document.getElementById('delete-modal').style.display = 'flex';
+    }
+
+    function closeDeleteModal() {
+        document.getElementById('delete-modal').style.display = 'none';
+    }
+
+    async function confirmDelete() {
+        const id = document.getElementById('delete-id').value;
+
+        try {
+            const response = await fetch(`/api/vehicle-types/${id}`, {
+                method: 'DELETE'
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+                closeDeleteModal();
+                loadVehicleTypes();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch (e) {
+            alert('Error de conexión');
+        }
+    }
+
+    // Load types on page load
+    document.addEventListener('DOMContentLoaded', loadVehicleTypes);
+</script>
+{% endblock %}

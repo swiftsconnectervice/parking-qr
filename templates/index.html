@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card text-center">
+    <p class="mb-2">Bienvenido al sistema de estacionamiento.</p>
+    <a href="/register" class="btn btn-outline-primary">Entrada</a>
+    <a href="/scanner" class="btn btn-outline-danger">Salida (QR)</a>
+    <a href="/calculator" class="btn btn-outline-success">Calculadora de Tarifas</a>
+</div>
+
+<div class="card text-center">
+    <p class="mb-2">Administración</p>
+    <a href="/dashboard" class="btn btn-outline">Panel de Control</a>
+    <a href="/vehicle-types" class="btn btn-outline">Tipos de Vehículos</a>
+</div>
+{% endblock %}
