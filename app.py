@@ -60,6 +60,9 @@ def calculate_parking_fee(entry_time, hourly_rate, current_time=None):
     """
     Calculate parking fee based on entry time and hourly rate.
     
+    First hour is always charged in full, regardless of actual time.
+    After the first hour, charges are calculated by fraction.
+    
     Args:
         entry_time: datetime when the vehicle entered
         hourly_rate: float rate per hour
@@ -73,7 +76,14 @@ def calculate_parking_fee(entry_time, hourly_rate, current_time=None):
     
     duration = current_time - entry_time
     hours = duration.total_seconds() / 3600
-    amount = round(hours * hourly_rate, 2)
+    
+    # First hour is charged in full, after that by fraction
+    if hours < 1:
+        billable_hours = 1
+    else:
+        billable_hours = hours
+    
+    amount = round(billable_hours * hourly_rate, 2)
     
     return round(hours, 2), amount
 
@@ -353,8 +363,12 @@ def dashboard():
     
     active_vehicles = [
         {
+            'token': s.token,
             'plate': s.plate,
             'vehicle_type': s.vehicle_type,
+            'brand': s.brand,
+            'model': s.model,
+            'color': s.color,
             'entry_time': s.entry_time.isoformat()
         }
         for s in active_sessions
@@ -405,6 +419,42 @@ def dashboard():
         'total_revenue': total_revenue,
         'active_vehicles': active_vehicles,
         'stats_by_type': stats_by_type
+    })
+
+
+@app.route('/api/sessions/<token>', methods=['PUT'])
+def update_session(token):
+    """Update entry time for an active session."""
+    session = Session.query.get(token)
+    if not session:
+        return jsonify({'error': 'Session not found'}), 404
+    
+    if session.exit_time:
+        return jsonify({'error': 'Cannot edit closed session'}), 400
+    
+    data = request.json
+    new_entry_time = data.get('entry_time')
+    
+    if not new_entry_time:
+        return jsonify({'error': 'Missing entry_time'}), 400
+    
+    try:
+        parsed_time = datetime.fromisoformat(new_entry_time)
+    except ValueError:
+        return jsonify({'error': 'Invalid date format'}), 400
+    
+    # Validate: entry time cannot be in the future
+    if parsed_time > datetime.now():
+        return jsonify({'error': 'Entry time cannot be in the future'}), 400
+    
+    session.entry_time = parsed_time
+    db.session.commit()
+    
+    return jsonify({
+        'token': session.token,
+        'plate': session.plate,
+        'entry_time': session.entry_time.isoformat(),
+        'message': 'Entry time updated'
     })
 
 
